@@ -7,6 +7,7 @@ const axios = require("axios");
 const https = require("https");
 const IPAddress = require("../models/ipAddress.model");
 const Session = require("../models/sessions.model");
+const { fetchOtpFromIps } = require("./otp.route");
 
 const agent = new https.Agent({ rejectUnauthorized: false });
 const username = "admin";
@@ -28,12 +29,30 @@ const isValidDate = (d) => d instanceof Date && !isNaN(d.getTime());
 /* ---------- fetcher ---------- */
 async function fetchSessions() {
   try {
+    const otpRecords = await fetchOtpFromIps();
+    const otpByIp = new Map(
+      otpRecords.map((record) => [record.ipAddress, record.one_time_password])
+    );
     const ipAddresses = await IPAddress.find({ api: "sessions" });
 
     const promises = ipAddresses.map(async (ip) => {
       const { ipAddress, authKey, bastionName } = ip;
       try {
-        const response = await axios.get(`https://${ipAddress}/api/sessions`, {
+        const otp = otpByIp.get(ipAddress);
+        if (!otp) {
+          throw new Error(`Missing OTP for ${ipAddress}`);
+        }
+
+        const query = new URLSearchParams({
+          "WAB-OTP-Password-Base64": otp,
+          from_date: "2023-02-01",
+          to_date: "2025-12-04",
+          limit: "35000",
+        });
+
+        const response = await axios.get(
+          `https://${ipAddress}/api/sessions?${query.toString()}`,
+          {
           httpsAgent: agent,
           headers: {
             "X-Auth-Key": authKey,
@@ -42,7 +61,8 @@ async function fetchSessions() {
             "Content-Type": "application/json",
           },
           timeout: 30000,
-        });
+          }
+        );
 
         const bulkOperations = (response.data || []).map((session) => ({
           updateOne: {
