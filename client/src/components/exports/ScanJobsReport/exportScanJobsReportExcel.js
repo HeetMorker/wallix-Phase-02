@@ -1,0 +1,43 @@
+// components/exports/ScanJobsReport/exportScanJobsReportExcel.js
+import * as XLSX from "xlsx";
+
+const exportScanJobsReportExcel = async (data, username) => {
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([]);
+  const dateStr = new Date().toLocaleString();
+
+  XLSX.utils.sheet_add_aoa(worksheet, [
+    [`Username: ${username}`],
+    ["Report: Scan Jobs Report"],
+    [`Date: ${dateStr}`],
+    [""],
+  ]);
+
+  const headers = ["Type", "Start", "End", "IP", "Protocol", "Port", "Banner"];
+
+  const rows = data.map((item) => [
+    item.type || "-",
+    item.start ? new Date(item.start).toLocaleString() : "-",
+    item.end ? new Date(item.end).toLocaleString() : "-",
+    item.ip || "-",
+    item.protocol || "-",
+    item.port || "-",
+    item.banner || "-",
+  ]);
+
+  XLSX.utils.sheet_add_aoa(worksheet, [headers], { origin: "A5" });
+  XLSX.utils.sheet_add_aoa(worksheet, rows, { origin: "A6" });
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, "ScanJobs");
+
+  const buffer = await XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array",
+  });
+
+  return new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+};
+
+export default exportScanJobsReportExcel;
